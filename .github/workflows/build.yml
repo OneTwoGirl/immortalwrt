@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
 
 env:
-  REPO_URL: https://github.com  # 确认这是你Fork的源码上游
+  REPO_URL: https://github.com/VIKINGYFY/immortalwrt  # 确认这是你Fork的源码上游
   REPO_BRANCH: main
   CONFIG_FILE: .config
   TZ: Asia/Shanghai

@@ -1,19 +1,12 @@
 name: Build OpenWrt for JDCloud RE-CS-02
 
 on:
-  repository_dispatch:
   workflow_dispatch:
 
 env:
-  REPO_URL: https://github.com{{ github.repository }}
-  REPO_BRANCH: master
-  FEEDS_CONF: feeds.conf.default
+  REPO_URL: https://github.com  # 确认这是你Fork的源码上游
+  REPO_BRANCH: main
   CONFIG_FILE: .config
-  DIY_P1_SH: diy-part1.sh
-  DIY_P2_SH: diy-part2.sh
-  UPLOAD_BIN_DIR: false
-  UPLOAD_ARMOR_MASTER: true
-  UPLOAD_RELEASE: false
   TZ: Asia/Shanghai
 
 jobs:
@@ -31,28 +24,32 @@ jobs:
         sudo rm -rf /etc/apt/sources.list.d/* /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/share/powershell /usr/share/swift /usr/local/.ghcup /usr/lib/jvm || true
         sudo -E apt-get -qq update
         sudo -E apt-get -qq install -y build-essential clang flex bison g++ gawk gcc-multilib g++-multilib gettext git libncurses-dev libssl-dev python3-distutils rsync unzip zlib1g-dev file wget curl
-        sudo -E apt-get -qq autoremove --purge
-        sudo -E apt-get -qq clean
         sudo timedatectl set-timezone "$TZ"
         sudo mkdir -p /workdir
         sudo chown $USER:$USER /workdir
 
+    - name: Clone source code
+      working-directory: /workdir
+      run: |
+        df -hT $PWD
+        git clone $REPO_URL -b $REPO_BRANCH openwrt
+        ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
+
     - name: Update feeds
-      run: cd /workdir && ./scripts/feeds update -a
+      run: cd /workdir/openwrt && ./scripts/feeds update -a
 
     - name: Install feeds
-      run: cd /workdir && ./scripts/feeds install -a
+      run: cd /workdir/openwrt && ./scripts/feeds install -a
 
     - name: Load custom configuration
       run: |
-        [ -e $CONFIG_FILE ] && mv $CONFIG_FILE /workdir/.config
-        cd /workdir
+        [ -e $CONFIG_FILE ] && cp $CONFIG_FILE /workdir/openwrt/.config
+        cd /workdir/openwrt
         make defconfig
 
     - name: Download package
-      id: package
       run: |
-        cd /workdir
+        cd /workdir/openwrt
         make download -j8
         find dl -size -1024c -exec ls -l {} \;
         find dl -size -1024c -exec rm -f {} \;
@@ -60,7 +57,7 @@ jobs:
     - name: Compile the firmware
       id: compile
       run: |
-        cd /workdir
+        cd /workdir/openwrt
         echo -e "$(nproc) thread compile"
         make -j$(nproc) || make -j1 || make -j1 V=s
         echo "status=success" >> $GITHUB_OUTPUT
@@ -70,4 +67,4 @@ jobs:
       if: steps.compile.outputs.status == 'success'
       with:
         name: OpenWrt_firmware
-        path: /workdir/bin/targets/
+        path: /workdir/openwrt/bin/targets/
